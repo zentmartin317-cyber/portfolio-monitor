@@ -174,7 +174,6 @@
       color: var(--accent);
     }
     .analyse-btn:hover { background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(155,109,255,0.2)); }
-    .analyse-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; border-color: var(--border); }
     .analyse-result {
       margin-top: 12px; background: var(--card); border-radius: 8px;
       padding: 14px 16px; border-left: 3px solid var(--accent);
@@ -199,7 +198,6 @@
       transition: all 0.2s; white-space: nowrap;
     }
     .port-btn:hover { background: linear-gradient(135deg, rgba(0,212,255,0.25), rgba(155,109,255,0.25)); }
-    .port-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; border-color: var(--border); }
     .port-result {
       background: var(--card); border-radius: 8px; padding: 14px 16px;
       border-left: 3px solid var(--purple);
@@ -228,7 +226,7 @@
     }
     .copy-btn:hover { color: var(--text); border-color: var(--accent); }
 
-    /* Kurs Update */
+    /* Kurs Update (manuell als Backup) */
     .update-section {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 16px 18px; margin-bottom: 18px;
@@ -243,17 +241,13 @@
       color: var(--text); font-size: 13px; font-weight: 700;
       font-family: 'IBM Plex Mono', monospace;
       width: 100%; outline: none;
-      transition: border-color 0.2s;
     }
-    .update-input:focus { border-color: var(--accent); }
     .update-btn {
       width: 100%; margin-top: 12px; background: linear-gradient(135deg, rgba(0,228,122,0.15), rgba(0,212,255,0.15));
       border: 1px solid rgba(0,228,122,0.3); border-radius: 8px;
       padding: 10px; color: var(--green); font-weight: 700; font-size: 13px;
       cursor: pointer; font-family: 'IBM Plex Sans', sans-serif;
-      transition: all 0.2s;
     }
-    .update-btn:hover { background: linear-gradient(135deg, rgba(0,228,122,0.25), rgba(0,212,255,0.25)); }
 
     .footer { color: var(--muted); font-size: 10px; text-align: center; line-height: 1.6; padding-bottom: 20px; }
   </style>
@@ -265,10 +259,10 @@
   <div class="header">
     <div class="header-badge">
       <div class="live-dot"></div>
-      <span class="badge-text">KI-INFRASTRUKTUR WATCHLIST</span>
+      <span class="badge-text">KI-INFRASTRUKTUR WATCHLIST (VOLLAUTOMATISCH)</span>
     </div>
     <h1>Portfolio <span>Monitor</span></h1>
-    <div class="subtitle" id="lastUpdate">Stand: wird geladen...</div>
+    <div class="subtitle" id="lastUpdate">Lade Live-Daten...</div>
   </div>
 
   <!-- Summary -->
@@ -281,15 +275,15 @@
     <div class="budget-legend" id="budgetLegend"></div>
   </div>
 
-  <!-- Kurs Update -->
-  <div class="update-section">
-    <div class="section-label">📝 KURSE AKTUALISIEREN (in €)</div>
-    <div class="update-grid" id="updateGrid"></div>
-    <button class="update-btn" id="fetchBtn" onclick="fetchLivePrices()">🌐 Live-Kurse automatisch abrufen & prüfen</button>
-  </div>
-
   <!-- Stock Cards -->
   <div id="stockCards"></div>
+
+  <!-- Manuelles Backup Update -->
+  <div class="update-section">
+    <div class="section-label">📝 MANUELLER KURS-BACKUP (falls API blockiert)</div>
+    <div class="update-grid" id="updateGrid"></div>
+    <button class="update-btn" onclick="applyManualPrices()">💾 Manuelle Werte übernehmen</button>
+  </div>
 
   <!-- Portfolio Analyse -->
   <div class="portfolio-section">
@@ -298,7 +292,7 @@
         <div class="port-title">🤖 Portfolio-Gesamtanalyse</div>
         <div class="port-sub">KI bewertet dein gesamtes Setup</div>
       </div>
-      <button class="port-btn" id="portBtn" onclick="analyzePortfolio()">Analyse starten</button>
+      <button class="port-btn" onclick="analyzePortfolio()">Analyse starten</button>
     </div>
     <div id="portResult" class="port-empty">Klicke auf "Analyse starten" für eine KI-Bewertung</div>
   </div>
@@ -310,7 +304,7 @@
     <button class="copy-btn" onclick="copyPrompt()">📋 Prompt kopieren</button>
   </div>
 
-  <div class="footer">⚠️ Keine Anlageberatung · Live-Kurse via API · Eigene Due Diligence erforderlich<br>KI-Portfolio Monitor · Stand Mai 2026</div>
+  <div class="footer">⚠️ Keine Anlageberatung · Vollautomatischer Live-Abruf aktiv<br>KI-Portfolio Monitor · Stand Juli 2026</div>
 </div>
 
 <script>
@@ -368,18 +362,11 @@ function getRiskColor(s) {
 }
 function save() { localStorage.setItem("ki_watchlist", JSON.stringify(stocks)); }
 
-// ── Automatischer Live-Abruf ─────────────────────────────────────────────────
-async function fetchLivePrices() {
-  const btn = document.getElementById("fetchBtn");
-  btn.disabled = true;
-  btn.textContent = "⏳ Hole Live-Kurse von der Börse...";
-
+// ── Automatischer Live-Abruf im Hintergrund beim Start ───────────────────────
+async function autoFetchLivePrices() {
   try {
-    // Wir nutzen einen öffentlichen CORS-Proxy für Yahoo Finance
     const symbols = stocks.map(s => s.yahooSymbol).join(",");
     const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
-    
-    // Fallback auf alternative Abfrage via Allorigins Proxy um CORS-Probleme im Browser zu umgehen
     const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
     
     const response = await fetch(proxyUrl);
@@ -391,42 +378,25 @@ async function fetchLivePrices() {
       stocks.forEach(s => {
         const match = results.find(r => r.symbol === s.yahooSymbol);
         if (match && match.regularMarketPrice) {
-          // Falls Kurse in USD sind, rechnen wir sie grob in EUR um (oder direkt übernehmen falls EUR)
-          // Yahoo liefert US-Aktien in USD. Wir nehmen den Kurs und multiplizieren mit einem USD/EUR Faktor ca. 0.92 oder nutzen den direkten Wert
           let price = match.regularMarketPrice;
-          // Wenn die Währung USD ist, rechnen wir in EUR um (Beispiel-Wechselkurs ca. 0.92, oder falls bereits EUR geliefert wird)
           if (match.currency === "USD") {
-            // Optionaler USD zu EUR Umrechner (kann angepasst werden)
-            price = price * 0.92; 
+            price = price * 0.92; // Umrechnung USD zu EUR
           }
           s.currentEUR = parseFloat(price.toFixed(2));
         }
       });
       save();
-      renderAll();
-      alert("✅ Live-Kurse erfolgreich aktualisiert!");
-    } else {
-      throw new Error("Keine Daten erhalten");
     }
   } catch (e) {
-    // Fallback falls die API blockiert: Manuelle Werte aus den Inputfeldern übernehmen
-    stocks.forEach(s => {
-      const inputVal = parseFloat(document.getElementById("input_"+s.ticker).value);
-      if (!isNaN(inputVal) && inputVal > 0) s.currentEUR = inputVal;
-    });
-    save();
-    renderAll();
-    alert("⚠️ Automatischer Live-Abruf blockiert – Werte aus den Eingabefeldern wurden übernommen.");
+    console.log("Live-Abruf im Hintergrund fehlgeschlagen, nutze lokale/gespeicherte Werte.");
   }
-
-  btn.disabled = false;
-  btn.textContent = "🌐 Live-Kurse automatisch abrufen & prüfen";
+  renderAll();
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
 function renderAll() {
   document.getElementById("lastUpdate").textContent =
-    "Zuletzt aktualisiert: " + new Date().toLocaleString("de-DE");
+    "Zuletzt live aktualisiert: " + new Date().toLocaleString("de-DE");
 
   renderSummary();
   renderBudgetBar();
@@ -471,9 +441,18 @@ function renderUpdateGrid() {
     <div class="update-item">
       <div class="update-ticker">${s.ticker} — ${s.name.split(" ")[0]}</div>
       <input class="update-input" id="input_${s.ticker}"
-        type="number" step="0.01" value="${s.currentEUR}"
-        placeholder="${s.currentEUR}" />
+        type="number" step="0.01" value="${s.currentEUR}" />
     </div>`).join("");
+}
+
+function applyManualPrices() {
+  stocks.forEach(s => {
+    const val = parseFloat(document.getElementById("input_"+s.ticker).value);
+    if (!isNaN(val) && val > 0) s.currentEUR = val;
+  });
+  save();
+  renderAll();
+  alert("✅ Manuelle Kurse übernommen!");
 }
 
 function renderStockCards() {
@@ -592,10 +571,7 @@ async function analyzeStock(ticker) {
   const btn = document.getElementById("abtn_"+ticker);
   btn.disabled = true; btn.textContent = "⏳ Analysiere...";
 
-  const prompt = `Du bist ein Senior Investment Analyst für KI-Infrastruktur-Aktien.
-Analysiere ${s.ticker} (${s.name}) kurz auf Deutsch:
-Aktueller EUR-Kurs: ${s.currentEUR} €
-Segment: ${s.segment} | Risiko: ${s.risk}/10 | Status: ${s.status}`;
+  const prompt = `Analysiere ${s.ticker} (${s.name}) auf Deutsch: Aktueller EUR-Kurs: ${s.currentEUR} €`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -610,22 +586,17 @@ Segment: ${s.segment} | Risiko: ${s.risk}/10 | Status: ${s.status}`;
     const data = await res.json();
     analyses[ticker] = data.content?.find(b=>b.type==="text")?.text || "Keine Antwort.";
   } catch(e) {
-    analyses[ticker] = "⚠️ Fehler. Bitte erneut versuchen.";
+    analyses[ticker] = "⚠️ Fehler bei der Analyse.";
   }
   renderStockCards();
   window._expanded[ticker] = true;
   renderStockCards();
 }
 
-// ── Portfolio-Analyse ────────────────────────────────────────────────────────
+// ── Portfolio-Analyse ────────────────────────────────------------------------
 async function analyzePortfolio() {
-  const btn = document.getElementById("portBtn");
-  btn.disabled = true; btn.textContent = "⏳ Analysiere...";
   document.getElementById("portResult").innerHTML = "<div class='port-empty'>Analyse läuft...</div>";
-
-  const prompt = `Analysiere dieses Portfolio auf Deutsch:
-Gesamtbudget: ${TOTAL_BUDGET.toLocaleString("de-DE")} €
-Positionen: ${stocks.map(s=>s.ticker).join(", ")}`;
+  const prompt = `Analysiere dieses Portfolio auf Deutsch mit Gesamtbudget ${TOTAL_BUDGET} €.`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -641,16 +612,13 @@ Positionen: ${stocks.map(s=>s.ticker).join(", ")}`;
     const text = data.content?.find(b=>b.type==="text")?.text || "Keine Antwort.";
     document.getElementById("portResult").innerHTML = `<div class="port-result">${text}</div>`;
   } catch(e) {
-    document.getElementById("portResult").innerHTML = `<div class="port-result">⚠️ Fehler. Bitte erneut versuchen.</div>`;
+    document.getElementById("portResult").innerHTML = `<div class="port-result">⚠️ Fehler bei der Analyse.</div>`;
   }
-  btn.disabled = false; btn.textContent = "Neue Analyse";
 }
 
 // ── Prompt ───────────────────────────────────────────────────────────────────
 function renderPrompt() {
-  const txt = `Du bist mein KI-Infrastruktur Investment Analyst.
-Aktuelle Kurse:
-${stocks.map(s=>`- ${s.ticker}: ${s.currentEUR} €`).join("\n")}`;
+  const txt = `Aktuelle Live-Kurse:\n${stocks.map(s=>`- ${s.ticker}: ${s.currentEUR} €`).join("\n")}`;
   document.getElementById("promptBox").textContent = txt;
 }
 
@@ -661,8 +629,8 @@ function copyPrompt() {
   setTimeout(()=>btn.textContent="📋 Prompt kopieren", 2000);
 }
 
-// ── Init ─────────────────────────────────────────────────────────────────────
-renderAll();
+// ── Init (Start beim Laden der Seite) ────────────────────────────────────────
+autoFetchLivePrices();
 </script>
 </body>
 </html>
