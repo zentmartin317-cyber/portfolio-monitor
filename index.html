@@ -262,7 +262,7 @@
       <span class="badge-text">KI-INFRASTRUKTUR WATCHLIST (ALPHA VANTAGE API)</span>
     </div>
     <h1>Portfolio <span>Monitor</span></h1>
-    <div class="subtitle" id="lastUpdate">Lade Live-Börsendaten...</div>
+    <div class="subtitle" id="lastUpdate">Lade Live-Börsendaten mit Wartezeit...</div>
   </div>
 
   <!-- Summary -->
@@ -278,7 +278,7 @@
   <!-- Stock Cards -->
   <div id="stockCards"></div>
 
-  <!-- Manuelles Backup -->
+  <!-- Manual Backup -->
   <div class="update-section">
     <div class="section-label">📝 MANUELLER KURS-BACKUP</div>
     <div class="update-grid" id="updateGrid"></div>
@@ -344,35 +344,44 @@ const TOTAL_BUDGET = 13500;
 let stocks = JSON.parse(localStorage.getItem("ki_watchlist") || "null") || WATCHLIST;
 let analyses = {};
 
-// TRAGE HIER DEINEN KOSTENLOSEN API-KEY EIN:
+// TRAGE HIER DEINEN API-KEY EIN:
 const API_KEY = 'DEIN_API_KEY_HIER_EINTRAGEN';
 
-// ── Live-Abruf über Alpha Vantage API ────────────────────────────────────────
+// Kleine Hilfsfunktion für Pausen zwischen Abfragen (gegen API-Sperren)
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// ── Live-Abruf über Alpha Vantage API mit Verzögerung ────────────────────────
 async function fetchLivePrices() {
-  if (API_KEY === 'R45JV3EGHNSO5MWZ') {
+  if (API_KEY === 'DEIN_API_KEY_HIER_EINTRAGEN') {
     renderAll();
     document.getElementById("lastUpdate").textContent = "Hinweis: Trage deinen Alpha Vantage API-Key im Code ein.";
     return;
   }
 
   try {
-    // 1. Hole aktuellen USD/EUR Wechselkurs
+    document.getElementById("lastUpdate").textContent = "Lade Wechselkurs...";
     const fxRes = await fetch(`https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=EUR&apikey=${API_KEY}`);
     const fxData = await fxRes.json();
-    let usdToEur = 0.92; // Fallback
+    let usdToEur = 0.92;
     if (fxData["Realtime Currency Exchange Rate"]) {
       usdToEur = parseFloat(fxData["Realtime Currency Exchange Rate"]["5. Exchange Rate"]);
     }
 
-    // 2. Hole Kurse für jede Aktie einzeln
-    for (let s of stocks) {
+    for (let i = 0; i < stocks.length; i++) {
+      let s = stocks[i];
+      document.getElementById("lastUpdate").textContent = `Lade Kurs für ${s.ticker} (${i+1}/${stocks.length})...`;
+      
       const res = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${s.ticker}&apikey=${API_KEY}`);
       const data = await res.json();
       const quote = data["Global Quote"];
+      
       if (quote && quote["05. price"]) {
         let priceUSD = parseFloat(quote["05. price"]);
         s.currentEUR = parseFloat((priceUSD * usdToEur).toFixed(2));
       }
+      
+      // 1,2 Sekunden Pause einhalten, damit die Gratis-API nicht blockiert
+      await delay(1200);
     }
     save();
     renderAll();
