@@ -226,7 +226,7 @@
     }
     .copy-btn:hover { color: var(--text); border-color: var(--accent); }
 
-    /* Kurs Update (manuell als Backup) */
+    /* Manual Backup */
     .update-section {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 16px 18px; margin-bottom: 18px;
@@ -259,10 +259,10 @@
   <div class="header">
     <div class="header-badge">
       <div class="live-dot"></div>
-      <span class="badge-text">KI-INFRASTRUKTUR WATCHLIST (VOLLAUTOMATISCH)</span>
+      <span class="badge-text">KI-INFRASTRUKTUR WATCHLIST (ALPHA VANTAGE API)</span>
     </div>
     <h1>Portfolio <span>Monitor</span></h1>
-    <div class="subtitle" id="lastUpdate">Lade Live-Daten...</div>
+    <div class="subtitle" id="lastUpdate">Lade Live-Börsendaten...</div>
   </div>
 
   <!-- Summary -->
@@ -278,9 +278,9 @@
   <!-- Stock Cards -->
   <div id="stockCards"></div>
 
-  <!-- Manuelles Backup Update -->
+  <!-- Manuelles Backup -->
   <div class="update-section">
-    <div class="section-label">📝 MANUELLER KURS-BACKUP (falls API blockiert)</div>
+    <div class="section-label">📝 MANUELLER KURS-BACKUP</div>
     <div class="update-grid" id="updateGrid"></div>
     <button class="update-btn" onclick="applyManualPrices()">💾 Manuelle Werte übernehmen</button>
   </div>
@@ -304,37 +304,37 @@
     <button class="copy-btn" onclick="copyPrompt()">📋 Prompt kopieren</button>
   </div>
 
-  <div class="footer">⚠️ Keine Anlageberatung · Vollautomatischer Live-Abruf aktiv<br>KI-Portfolio Monitor · Stand Juli 2026</div>
+  <div class="footer">⚠️ Keine Anlageberatung · Echte Live-Daten via Alpha Vantage API<br>KI-Portfolio Monitor · Stand Juli 2026</div>
 </div>
 
 <script>
 // ── Daten ────────────────────────────────────────────────────────────────────
 const WATCHLIST = [
-  { ticker:"APH", yahooSymbol:"APH", name:"Amphenol", segment:"Connectivity", icon:"🔗",
+  { ticker:"APH", name:"Amphenol", segment:"Connectivity", icon:"🔗",
     currentEUR:110.46, status:"KAUFEN", statusColor:"#00e57a",
     tranchen:[{l:"T1",eur:108,note:"Limit-Order"},{l:"T2",eur:98,note:"Rücksetzer"},{l:"T3",eur:85,note:"Ausverkauf"}],
     budget:3000, risk:2, color:"#00d4ff" },
-  { ticker:"ETN", yahooSymbol:"ETN", name:"Eaton Corp.", segment:"Grid & Power", icon:"⚡",
+  { ticker:"ETN", name:"Eaton Corp.", segment:"Grid & Power", icon:"⚡",
     currentEUR:349.40, status:"WARTEN", statusColor:"#f0a500",
     tranchen:[{l:"T1",eur:338,note:"Konsolidierung"},{l:"T2",eur:298,note:"Korrektur"},{l:"T3",eur:263,note:"Ausverkauf"}],
     budget:3000, risk:3, color:"#00e57a" },
-  { ticker:"GEV", yahooSymbol:"GEV", name:"GE Vernova", segment:"Grid & Power", icon:"⚡",
+  { ticker:"GEV", name:"GE Vernova", segment:"Grid & Power", icon:"⚡",
     currentEUR:937, status:"WARTEN", statusColor:"#f0a500",
     tranchen:[{l:"T1",eur:860,note:"–8% Korrektur"},{l:"T2",eur:754,note:"–20% Korrektur"},{l:"T3",eur:649,note:"–30% Ausverkauf"}],
     budget:2500, risk:3, color:"#9b6dff" },
-  { ticker:"FCX", yahooSymbol:"FCX", name:"Freeport-McMoRan", segment:"Rohstoffe", icon:"⛏",
+  { ticker:"FCX", name:"Freeport-McMoRan", segment:"Rohstoffe", icon:"⛏",
     currentEUR:51, status:"BEOBACHTEN", statusColor:"#ff7b00",
     tranchen:[{l:"T1",eur:50,note:"Aktueller Bereich"},{l:"T2",eur:41,note:"–20% Korrektur"},{l:"T3",eur:36,note:"–30% Ausverkauf"}],
     budget:1500, risk:5, color:"#f0a500" },
-  { ticker:"VRT", yahooSymbol:"VRT", name:"Vertiv Holdings", segment:"Cooling", icon:"🔗",
+  { ticker:"VRT", name:"Vertiv Holdings", segment:"Cooling", icon:"🔗",
     currentEUR:331, status:"WARTEN", statusColor:"#f0a500",
     tranchen:[{l:"T1",eur:285,note:"–14% Korrektur"},{l:"T2",eur:230,note:"–30% Korrektur"},{l:"T3",eur:190,note:"–42% Ausverkauf"}],
     budget:1500, risk:7, color:"#ff7b00" },
-  { ticker:"BE", yahooSymbol:"BE", name:"Bloom Energy", segment:"Off-Grid", icon:"🔋",
+  { ticker:"BE", name:"Bloom Energy", segment:"Off-Grid", icon:"🔋",
     currentEUR:191, status:"NICHT JETZT", statusColor:"#ff4d6d",
     tranchen:[{l:"T1",eur:158,note:"–17% Korrektur"},{l:"T2",eur:123,note:"–36% Korrektur"},{l:"T3",eur:96,note:"–50% Ausverkauf"}],
     budget:500, risk:8, color:"#ff4d6d" },
-  { ticker:"ANET", yahooSymbol:"ANET", name:"Arista Networks", segment:"AI Networking", icon:"🌐",
+  { ticker:"ANET", name:"Arista Networks", segment:"AI Networking", icon:"🌐",
     currentEUR:121, status:"KAUFEN", statusColor:"#00e57a",
     tranchen:[{l:"T1",eur:122,note:"Jetzt / Limit-Order"},{l:"T2",eur:107,note:"–12% Rücksetzer"},{l:"T3",eur:93,note:"–25% Ausverkauf"}],
     budget:1500, risk:3, color:"#00d4ff" },
@@ -343,6 +343,44 @@ const WATCHLIST = [
 const TOTAL_BUDGET = 13500;
 let stocks = JSON.parse(localStorage.getItem("ki_watchlist") || "null") || WATCHLIST;
 let analyses = {};
+
+// TRAGE HIER DEINEN KOSTENLOSEN API-KEY EIN:
+const API_KEY = 'DEIN_API_KEY_HIER_EINTRAGEN';
+
+// ── Live-Abruf über Alpha Vantage API ────────────────────────────────────────
+async function fetchLivePrices() {
+  if (API_KEY === 'R45JV3EGHNSO5MWZ') {
+    renderAll();
+    document.getElementById("lastUpdate").textContent = "Hinweis: Trage deinen Alpha Vantage API-Key im Code ein.";
+    return;
+  }
+
+  try {
+    // 1. Hole aktuellen USD/EUR Wechselkurs
+    const fxRes = await fetch(`https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=EUR&apikey=${API_KEY}`);
+    const fxData = await fxRes.json();
+    let usdToEur = 0.92; // Fallback
+    if (fxData["Realtime Currency Exchange Rate"]) {
+      usdToEur = parseFloat(fxData["Realtime Currency Exchange Rate"]["5. Exchange Rate"]);
+    }
+
+    // 2. Hole Kurse für jede Aktie einzeln
+    for (let s of stocks) {
+      const res = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${s.ticker}&apikey=${API_KEY}`);
+      const data = await res.json();
+      const quote = data["Global Quote"];
+      if (quote && quote["05. price"]) {
+        let priceUSD = parseFloat(quote["05. price"]);
+        s.currentEUR = parseFloat((priceUSD * usdToEur).toFixed(2));
+      }
+    }
+    save();
+    renderAll();
+  } catch (e) {
+    console.log("API Abruf Fehler, nutze lokale Werte.");
+    renderAll();
+  }
+}
 
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
 function distPct(cur, tgt) { return (((tgt - cur) / cur) * 100).toFixed(1); }
@@ -362,41 +400,10 @@ function getRiskColor(s) {
 }
 function save() { localStorage.setItem("ki_watchlist", JSON.stringify(stocks)); }
 
-// ── Automatischer Live-Abruf im Hintergrund beim Start ───────────────────────
-async function autoFetchLivePrices() {
-  try {
-    const symbols = stocks.map(s => s.yahooSymbol).join(",");
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    
-    const response = await fetch(proxyUrl);
-    const data = await response.json();
-    const parsedData = JSON.parse(data.contents);
-    const results = parsedData.quoteResponse.result;
-
-    if (results && results.length > 0) {
-      stocks.forEach(s => {
-        const match = results.find(r => r.symbol === s.yahooSymbol);
-        if (match && match.regularMarketPrice) {
-          let price = match.regularMarketPrice;
-          if (match.currency === "USD") {
-            price = price * 0.92; // Umrechnung USD zu EUR
-          }
-          s.currentEUR = parseFloat(price.toFixed(2));
-        }
-      });
-      save();
-    }
-  } catch (e) {
-    console.log("Live-Abruf im Hintergrund fehlgeschlagen, nutze lokale/gespeicherte Werte.");
-  }
-  renderAll();
-}
-
 // ── Render ───────────────────────────────────────────────────────────────────
 function renderAll() {
   document.getElementById("lastUpdate").textContent =
-    "Zuletzt live aktualisiert: " + new Date().toLocaleString("de-DE");
+    "Zuletzt aktualisiert: " + new Date().toLocaleString("de-DE");
 
   renderSummary();
   renderBudgetBar();
@@ -439,7 +446,7 @@ function renderUpdateGrid() {
   const grid = document.getElementById("updateGrid");
   grid.innerHTML = stocks.map(s=>`
     <div class="update-item">
-      <div class="update-ticker">${s.ticker} — ${s.name.split(" ")[0]}</div>
+      <div class="update-ticker">${s.ticker}</div>
       <input class="update-input" id="input_${s.ticker}"
         type="number" step="0.01" value="${s.currentEUR}" />
     </div>`).join("");
@@ -570,7 +577,6 @@ async function analyzeStock(ticker) {
   const s = stocks.find(x=>x.ticker===ticker);
   const btn = document.getElementById("abtn_"+ticker);
   btn.disabled = true; btn.textContent = "⏳ Analysiere...";
-
   const prompt = `Analysiere ${s.ticker} (${s.name}) auf Deutsch: Aktueller EUR-Kurs: ${s.currentEUR} €`;
 
   try {
@@ -578,8 +584,7 @@ async function analyzeStock(ticker) {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
-        model:"claude-sonnet-4-20250514",
-        max_tokens:1000,
+        model:"claude-sonnet-4-20250514", max_tokens:1000,
         messages:[{role:"user",content:prompt}]
       })
     });
@@ -593,7 +598,7 @@ async function analyzeStock(ticker) {
   renderStockCards();
 }
 
-// ── Portfolio-Analyse ────────────────────────────────------------------------
+// ── Portfolio-Analyse ────────────────────────────────────────────────────────
 async function analyzePortfolio() {
   document.getElementById("portResult").innerHTML = "<div class='port-empty'>Analyse läuft...</div>";
   const prompt = `Analysiere dieses Portfolio auf Deutsch mit Gesamtbudget ${TOTAL_BUDGET} €.`;
@@ -603,8 +608,7 @@ async function analyzePortfolio() {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
-        model:"claude-sonnet-4-20250514",
-        max_tokens:1000,
+        model:"claude-sonnet-4-20250514", max_tokens:1000,
         messages:[{role:"user",content:prompt}]
       })
     });
@@ -629,8 +633,8 @@ function copyPrompt() {
   setTimeout(()=>btn.textContent="📋 Prompt kopieren", 2000);
 }
 
-// ── Init (Start beim Laden der Seite) ────────────────────────────────────────
-autoFetchLivePrices();
+// ── Init (Start beim Laden) ──────────────────────────────────────────────────
+fetchLivePrices();
 </script>
 </body>
 </html>
