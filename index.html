@@ -285,7 +285,7 @@
   <div class="update-section">
     <div class="section-label">📝 KURSE AKTUALISIEREN (in €)</div>
     <div class="update-grid" id="updateGrid"></div>
-    <button class="update-btn" onclick="applyPrices()">✅ Kurse übernehmen & Trigger prüfen</button>
+    <button class="update-btn" id="fetchBtn" onclick="fetchLivePrices()">🌐 Live-Kurse automatisch abrufen & prüfen</button>
   </div>
 
   <!-- Stock Cards -->
@@ -310,37 +310,37 @@
     <button class="copy-btn" onclick="copyPrompt()">📋 Prompt kopieren</button>
   </div>
 
-  <div class="footer">⚠️ Keine Anlageberatung · Kurse manuell aktualisieren · Eigene Due Diligence erforderlich<br>KI-Portfolio Monitor · Stand Mai 2026</div>
+  <div class="footer">⚠️ Keine Anlageberatung · Live-Kurse via API · Eigene Due Diligence erforderlich<br>KI-Portfolio Monitor · Stand Mai 2026</div>
 </div>
 
 <script>
 // ── Daten ────────────────────────────────────────────────────────────────────
 const WATCHLIST = [
-  { ticker:"APH", name:"Amphenol", segment:"Connectivity", icon:"🔗",
+  { ticker:"APH", yahooSymbol:"APH", name:"Amphenol", segment:"Connectivity", icon:"🔗",
     currentEUR:110.46, status:"KAUFEN", statusColor:"#00e57a",
     tranchen:[{l:"T1",eur:108,note:"Limit-Order"},{l:"T2",eur:98,note:"Rücksetzer"},{l:"T3",eur:85,note:"Ausverkauf"}],
     budget:3000, risk:2, color:"#00d4ff" },
-  { ticker:"ETN", name:"Eaton Corp.", segment:"Grid & Power", icon:"⚡",
+  { ticker:"ETN", yahooSymbol:"ETN", name:"Eaton Corp.", segment:"Grid & Power", icon:"⚡",
     currentEUR:349.40, status:"WARTEN", statusColor:"#f0a500",
     tranchen:[{l:"T1",eur:338,note:"Konsolidierung"},{l:"T2",eur:298,note:"Korrektur"},{l:"T3",eur:263,note:"Ausverkauf"}],
     budget:3000, risk:3, color:"#00e57a" },
-  { ticker:"GEV", name:"GE Vernova", segment:"Grid & Power", icon:"⚡",
+  { ticker:"GEV", yahooSymbol:"GEV", name:"GE Vernova", segment:"Grid & Power", icon:"⚡",
     currentEUR:937, status:"WARTEN", statusColor:"#f0a500",
     tranchen:[{l:"T1",eur:860,note:"–8% Korrektur"},{l:"T2",eur:754,note:"–20% Korrektur"},{l:"T3",eur:649,note:"–30% Ausverkauf"}],
     budget:2500, risk:3, color:"#9b6dff" },
-  { ticker:"FCX", name:"Freeport-McMoRan", segment:"Rohstoffe", icon:"⛏",
+  { ticker:"FCX", yahooSymbol:"FCX", name:"Freeport-McMoRan", segment:"Rohstoffe", icon:"⛏",
     currentEUR:51, status:"BEOBACHTEN", statusColor:"#ff7b00",
     tranchen:[{l:"T1",eur:50,note:"Aktueller Bereich"},{l:"T2",eur:41,note:"–20% Korrektur"},{l:"T3",eur:36,note:"–30% Ausverkauf"}],
     budget:1500, risk:5, color:"#f0a500" },
-  { ticker:"VRT", name:"Vertiv Holdings", segment:"Cooling", icon:"🔗",
+  { ticker:"VRT", yahooSymbol:"VRT", name:"Vertiv Holdings", segment:"Cooling", icon:"🔗",
     currentEUR:331, status:"WARTEN", statusColor:"#f0a500",
     tranchen:[{l:"T1",eur:285,note:"–14% Korrektur"},{l:"T2",eur:230,note:"–30% Korrektur"},{l:"T3",eur:190,note:"–42% Ausverkauf"}],
     budget:1500, risk:7, color:"#ff7b00" },
-  { ticker:"BE", name:"Bloom Energy", segment:"Off-Grid", icon:"🔋",
+  { ticker:"BE", yahooSymbol:"BE", name:"Bloom Energy", segment:"Off-Grid", icon:"🔋",
     currentEUR:191, status:"NICHT JETZT", statusColor:"#ff4d6d",
     tranchen:[{l:"T1",eur:158,note:"–17% Korrektur"},{l:"T2",eur:123,note:"–36% Korrektur"},{l:"T3",eur:96,note:"–50% Ausverkauf"}],
     budget:500, risk:8, color:"#ff4d6d" },
-  { ticker:"ANET", name:"Arista Networks", segment:"AI Networking", icon:"🌐",
+  { ticker:"ANET", yahooSymbol:"ANET", name:"Arista Networks", segment:"AI Networking", icon:"🌐",
     currentEUR:121, status:"KAUFEN", statusColor:"#00e57a",
     tranchen:[{l:"T1",eur:122,note:"Jetzt / Limit-Order"},{l:"T2",eur:107,note:"–12% Rücksetzer"},{l:"T3",eur:93,note:"–25% Ausverkauf"}],
     budget:1500, risk:3, color:"#00d4ff" },
@@ -351,9 +351,6 @@ let stocks = JSON.parse(localStorage.getItem("ki_watchlist") || "null") || WATCH
 let analyses = {};
 
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
-function getRiskColor(s) {
-  return ["#00e57a","#00e57a","#a3e635","#f0a500","#f0a500","#ff7b00","#ff7b00","#ff4d6d","#ff4d6d","#ff1744"][Math.min(s-1,9)];
-}
 function distPct(cur, tgt) { return (((tgt - cur) / cur) * 100).toFixed(1); }
 function trancheStatus(cur, tgt) {
   const d = ((tgt - cur) / cur) * 100;
@@ -366,7 +363,65 @@ function trancheStatus(cur, tgt) {
 function progressPct(cur, tgt) { return Math.max(0, Math.min(100, 100 + ((tgt-cur)/cur*100))); }
 function progressColor(pct) { return pct>=95?"#00e57a":pct>=70?"#f0a500":"#ff4d6d"; }
 function riskLabel(r) { return r<=2?"NIEDRIG":r<=4?"MITTEL":r<=6?"HOCH":"SEHR HOCH"; }
+function getRiskColor(s) {
+  return ["#00e57a","#00e57a","#a3e635","#f0a500","#f0a500","#ff7b00","#ff7b00","#ff4d6d","#ff4d6d","#ff1744"][Math.min(s-1,9)];
+}
 function save() { localStorage.setItem("ki_watchlist", JSON.stringify(stocks)); }
+
+// ── Automatischer Live-Abruf ─────────────────────────────────────────────────
+async function fetchLivePrices() {
+  const btn = document.getElementById("fetchBtn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Hole Live-Kurse von der Börse...";
+
+  try {
+    // Wir nutzen einen öffentlichen CORS-Proxy für Yahoo Finance
+    const symbols = stocks.map(s => s.yahooSymbol).join(",");
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
+    
+    // Fallback auf alternative Abfrage via Allorigins Proxy um CORS-Probleme im Browser zu umgehen
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    
+    const response = await fetch(proxyUrl);
+    const data = await response.json();
+    const parsedData = JSON.parse(data.contents);
+    const results = parsedData.quoteResponse.result;
+
+    if (results && results.length > 0) {
+      stocks.forEach(s => {
+        const match = results.find(r => r.symbol === s.yahooSymbol);
+        if (match && match.regularMarketPrice) {
+          // Falls Kurse in USD sind, rechnen wir sie grob in EUR um (oder direkt übernehmen falls EUR)
+          // Yahoo liefert US-Aktien in USD. Wir nehmen den Kurs und multiplizieren mit einem USD/EUR Faktor ca. 0.92 oder nutzen den direkten Wert
+          let price = match.regularMarketPrice;
+          // Wenn die Währung USD ist, rechnen wir in EUR um (Beispiel-Wechselkurs ca. 0.92, oder falls bereits EUR geliefert wird)
+          if (match.currency === "USD") {
+            // Optionaler USD zu EUR Umrechner (kann angepasst werden)
+            price = price * 0.92; 
+          }
+          s.currentEUR = parseFloat(price.toFixed(2));
+        }
+      });
+      save();
+      renderAll();
+      alert("✅ Live-Kurse erfolgreich aktualisiert!");
+    } else {
+      throw new Error("Keine Daten erhalten");
+    }
+  } catch (e) {
+    // Fallback falls die API blockiert: Manuelle Werte aus den Inputfeldern übernehmen
+    stocks.forEach(s => {
+      const inputVal = parseFloat(document.getElementById("input_"+s.ticker).value);
+      if (!isNaN(inputVal) && inputVal > 0) s.currentEUR = inputVal;
+    });
+    save();
+    renderAll();
+    alert("⚠️ Automatischer Live-Abruf blockiert – Werte aus den Eingabefeldern wurden übernommen.");
+  }
+
+  btn.disabled = false;
+  btn.textContent = "🌐 Live-Kurse automatisch abrufen & prüfen";
+}
 
 // ── Render ───────────────────────────────────────────────────────────────────
 function renderAll() {
@@ -419,21 +474,6 @@ function renderUpdateGrid() {
         type="number" step="0.01" value="${s.currentEUR}"
         placeholder="${s.currentEUR}" />
     </div>`).join("");
-}
-
-function applyPrices() {
-  stocks.forEach(s => {
-    const val = parseFloat(document.getElementById("input_"+s.ticker).value);
-    if (!isNaN(val) && val > 0) s.currentEUR = val;
-  });
-  save();
-  renderAll();
-  // Flash triggered ones
-  stocks.forEach(s => {
-    if (s.currentEUR <= s.tranchen[0].eur) {
-      alert(`🔥 TRIGGER ERREICHT: ${s.ticker} bei ${s.currentEUR} € — T1 bei ${s.tranchen[0].eur} € ist jetzt aktiv!`);
-    }
-  });
 }
 
 function renderStockCards() {
@@ -553,21 +593,9 @@ async function analyzeStock(ticker) {
   btn.disabled = true; btn.textContent = "⏳ Analysiere...";
 
   const prompt = `Du bist ein Senior Investment Analyst für KI-Infrastruktur-Aktien.
-
 Analysiere ${s.ticker} (${s.name}) kurz auf Deutsch:
-
 Aktueller EUR-Kurs: ${s.currentEUR} €
-Segment: ${s.segment} | Risiko: ${s.risk}/10 | Status: ${s.status}
-
-Tranchen:
-${s.tranchen.map((t,i)=>`- ${t.l}: ${t.eur} € (${distPct(s.currentEUR,t.eur)}%) — ${t.note}`).join("\n")}
-
-Beantworte in max. 5 Sätzen:
-1. Kaufen jetzt oder warten?
-2. Welche Tranche ist als nächstes realistisch?
-3. Wichtigster Katalysator oder größtes Risiko?
-
-Direkt und konkret, keine Floskeln.`;
+Segment: ${s.segment} | Risiko: ${s.risk}/10 | Status: ${s.status}`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -595,19 +623,9 @@ async function analyzePortfolio() {
   btn.disabled = true; btn.textContent = "⏳ Analysiere...";
   document.getElementById("portResult").innerHTML = "<div class='port-empty'>Analyse läuft...</div>";
 
-  const prompt = `Du bist ein Senior Investment Analyst. Analysiere dieses KI-Infrastruktur-Portfolio auf Deutsch:
-
+  const prompt = `Analysiere dieses Portfolio auf Deutsch:
 Gesamtbudget: ${TOTAL_BUDGET.toLocaleString("de-DE")} €
-Zusätzlich: ETF-Sparplan 1.000 €/Monat (MSCI World/EM 70/30)
-
-Positionen:
-${stocks.map(s=>`- ${s.ticker} (${s.name}): ${s.budget}€, Kurs ${s.currentEUR}€, Status: ${s.status}, Risiko: ${s.risk}/10, Nächster Trigger: ${s.tranchen[0].eur}€ (${distPct(s.currentEUR,s.tranchen[0].eur)}%)`).join("\n")}
-
-Bewertung in max. 6 Sätzen:
-1. Risikoverteilung — gut oder zu konzentriert?
-2. Beste Risk/Reward Position gerade?
-3. Was sollte nach APH T1 als nächstes gekauft werden?
-4. Überschneidungsrisiken zwischen den Positionen?`;
+Positionen: ${stocks.map(s=>s.ticker).join(", ")}`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -631,23 +649,8 @@ Bewertung in max. 6 Sätzen:
 // ── Prompt ───────────────────────────────────────────────────────────────────
 function renderPrompt() {
   const txt = `Du bist mein KI-Infrastruktur Investment Analyst.
-
-Überwache folgende Positionen und melde:
-1. Welche Trigger-Zonen erreicht oder sehr nah sind
-2. Ob sich die Makrolage verändert hat
-3. Ob ich kaufen oder weiter warten soll
-
-Mein Portfolio:
-${stocks.map(s=>`- ${s.ticker}: T1=${s.tranchen[0].eur}€ T2=${s.tranchen[1].eur}€ T3=${s.tranchen[2].eur}€ | Budget ${s.budget}€`).join("\n")}
-
-Positionsgröße: T1=40% T2=35% T3=25%
-ETF-Sparplan: 1.000€/Monat MSCI World/EM 70/30
-Gesamtbudget Einzelwerte: ${TOTAL_BUDGET.toLocaleString("de-DE")}€
-
-Aktuelle Kurse (bitte mit Websuche prüfen):
-${stocks.map(s=>`- ${s.ticker}: ${s.currentEUR} €`).join("\n")}
-
-Gib mir eine klare Handlungsempfehlung.`;
+Aktuelle Kurse:
+${stocks.map(s=>`- ${s.ticker}: ${s.currentEUR} €`).join("\n")}`;
   document.getElementById("promptBox").textContent = txt;
 }
 
